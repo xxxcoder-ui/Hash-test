@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EVMt Multi-Hash & Block Generator + WebSocket Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=0">
+  <!-- AERO, glass, blue/pink theme -->
+  <style>
+    :root {
+      --main-bg: #fff9ffcc;
+      --accent-pink: #ffb6e6;
+      --accent-blue: #a4d8ff;
+      --accent-pink-strong: #eb69c6;
+      --accent-blue-strong: #51bfff;
+      --text: #23223b;
+      --card-bg: #fff5fdcc;
+      --shadow: 0 4px 24px 0 #a4d8ff44;
+      --border-radius: 20px;
+    }
+    html, body {
+      margin: 0;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: var(--main-bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+    .bg-circles {
+      position: fixed;
+      z-index: 0;
+      width: 100vw;
+      height: 100vh;
+      left: 0;
+      top: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .circle {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0.22;
+      filter: blur(34px);
+      animation: moveCircle 18s linear infinite alternate;
+    }
+    .circle.pink {
+      background: radial-gradient(circle, var(--accent-pink-strong) 0%, var(--accent-pink) 70%, transparent 100%);
+    }
+    .circle.blue {
+      background: radial-gradient(circle, var(--accent-blue-strong) 0%, var(--accent-blue) 70%, transparent 100%);
+    }
+    @keyframes moveCircle {
+      0% { transform: translateY(0) scale(1);}
+      100% { transform: translateY(60px) scale(1.1);}
+    }
+    header {
+      position: relative;
+      z-index: 2;
+      background: var(--card-bg);
+      box-shadow: var(--shadow);
+      border-radius: var(--border-radius);
+      margin: 24px 18px 18px 18px;
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .nav-logo {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: var(--accent-pink-strong);
+      letter-spacing: 2px;
+    }
+    nav ul {
+      list-style: none;
+      display: flex;
+      gap: 32px;
+      margin: 0;
+      padding: 0;
+    }
+    nav a {
+      text-decoration: none;
+      color: var(--text);
+      font-weight: 500;
+      font-size: 1.1rem;
+      transition: color 0.2s;
+    }
+    nav a:hover {
+      color: var(--accent-blue-strong);
+    }
+    main {
+      z-index: 2;
+      position: relative;
+      margin: 0 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .card-section {
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      padding: 30px 34px 24px 34px;
+      margin: 34px 0;
+      max-width: 940px;
+      width: 100%;
+      position: relative;
+      z-index: 2;
+    }
+    .card-title {
+      color: var(--accent-blue-strong);
+      font-size: 1.46rem;
+      margin-top: 0;
+      margin-bottom: 16px;
+      font-weight: 700;
+    }
+    .desc {
+      color: #68456d;
+      font-size: 1.09rem;
+      margin-bottom: 25px;
+      margin-top: 5px;
+    }
+    .hash-block-card {
+      background: #fff8ffcc;
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 22px 24px 18px 24px;
+      margin: 0 0 22px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: stretch;
+      position: relative;
+      z-index: 2;
+    }
+    .hash-block-row {
+      display: flex;
+      gap: 13px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .hash-block-row label {
+      min-width: 75px;
+      color: var(--accent-blue-strong);
+      font-size: 1.03rem;
+    }
+    .hash-block-row input[type="number"] {
+      padding: 6px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--accent-blue);
+      width: 90px;
+      font-size: 1.07rem;
+      margin-right: 6px;
+    }
+    .hash-block-row button {
+      background: linear-gradient(90deg, var(--accent-pink), var(--accent-blue));
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 7px 18px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 1rem;
+      transition: background 0.2s;
+    }
+    .hash-block-row button:hover {
+      background: linear-gradient(90deg, var(--accent-blue-strong), var(--accent-pink-strong));
+    }
+    .results-area {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .results-area label {
+      color: var(--accent-pink-strong);
+    }
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: monospace;
+      font-size: 1.00rem;
+      margin-bottom: 10px;
+      background: #fafaff66;
+      border-radius: 7px;
+      overflow: hidden;
+      box-shadow: 0 1px 10px #e3e3fa22;
+    }
+    .result-table th, .result-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #e2e7ff55;
+      text-align: left;
+      background: #fff8ffcc;
+    }
+    .result-table th {
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-pink));
+      color: #fff;
+      font-weight: 700;
+      border-bottom: 2px solid #ffe3fa;
+    }
+    .result-table tr:last-child td {
+      border-bottom: none;
+    }
+    .result-value, .result-block {
+      font-family: monospace;
+      background: #eaf6ff55;
+      border-radius: 8px;
+      padding: 7px 9px;
+      min-height: 19px;
+      color: #d13b7b;
+      word-break: break-all;
+      margin-top: 3px;
+      font-size: 1.05rem;
+    }
+    .history-list {
+      list-style: decimal inside;
+      padding: 0;
+      margin: 6px 0 0 0;
+      font-family: monospace;
+      font-size: 0.97em;
+      color: #544e98;
+      background: #fff6fa66;
+      border-radius: 8px;
+      padding-left: 13px;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    .search-row {
+      margin: 22px 0 10px 0;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+    .search-row input[type="text"], .search-row input[type="number"] {
+      padding: 7px 15px;
+      border-radius: 10px;
+      border: 1px solid var(--accent-pink);
+      font-size: 1.08rem;
+      width: 180px;
+    }
+    .search-row button {
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-pink));
+      color: #fff;
+      border: none;
+      border-radius: 11px;
+      padding: 7px 16px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 1rem;
+    }
+    .search-row button:hover {
+      background: linear-gradient(90deg, var(--accent-pink-strong), var(--accent-blue-strong));
+    }
+    .search-result {
+      margin-top: 6px;
+      font-size: 1.05rem;
+      color: var(--accent-blue-strong);
+      font-family: monospace;
+      word-break: break-all;
+    }
+    .card-livehash {
+      background: #f7f6ffcc;
+      border-radius: 18px;
+      box-shadow: 0 2px 14px 0 #a4d8ff33;
+      padding: 22px 18px 18px 18px;
+      margin: 0 0 22px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 14px;
+      border: 1.5px solid #c5d2ff33;
+    }
+    .card-livehash-title {
+      color: var(--accent-pink-strong);
+      font-size: 1.13rem;
+      font-weight: 700;
+      margin-bottom: 2px;
+      margin-top: 0;
+    }
+    .card-livehash-desc {
+      color: #544e98;
+      font-size: 1.01rem;
+      margin-bottom: 8px;
+    }
+    .card-livehash-current {
+      font-family: monospace;
+      background: #f5eaff88;
+      border-radius: 8px;
+      padding: 7px 9px;
+      color: #51bfff;
+      font-size: 1.04rem;
+      margin-bottom: 7px;
+      word-break: break-all;
+    }
+    .card-livehash-status {
+      color: #eb69c6;
+      font-size: 0.99rem;
+      margin-bottom: 0;
+    }
+    /* WebSocket Card */
+    .card-websocket {
+      background: #eafffacc;
+      border-radius: 18px;
+      box-shadow: 0 2px 14px 0 #b4eaff33;
+      padding: 22px 18px 18px 18px;
+      margin: 0 0 22px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 14px;
+      border: 1.5px solid #b4f8e633;
+    }
+    .card-websocket-title {
+      color: #2e8fc7;
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 2px;
+      margin-top: 0;
+    }
+    .card-websocket-desc {
+      color: #295c7e;
+      font-size: 1.01rem;
+      margin-bottom: 8px;
+    }
+    .card-websocket-status {
+      font-size: 1.02rem;
+      color: #317c5a;
+      margin-bottom: 0;
+    }
+    .card-websocket-messages {
+      font-family: monospace;
+      background: #f5faf3;
+      border-radius: 8px;
+      padding: 7px 9px;
+      color: #2e8fc7;
+      font-size: 1.04rem;
+      margin-bottom: 7px;
+      word-break: break-all;
+      min-height: 40px;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+    .card-websocket-controls {
+      margin-bottom: 7px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .card-websocket-controls input[type="text"] {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid #b4eaff;
+      font-size: 1.03rem;
+      width: 220px;
+    }
+    .card-websocket-controls button {
+      background: linear-gradient(90deg, #a4d8ff, #ffb6e6);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 7px 13px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 1rem;
+    }
+    .card-websocket-controls button:hover {
+      background: linear-gradient(90deg, #51bfff, #eb69c6);
+    }
+    .card-websocket-address {
+      color: #2e8fc7;
+      font-size: 0.99rem;
+      margin-bottom: 6px;
+    }
+    .card-netver {
+      color: #3e3e7a;
+      font-size: 0.98rem;
+      font-weight: 600;
+      margin-top: 7px;
+      margin-bottom: 0;
+      text-align: right;
+    }
+    footer {
+      text-align: center;
+      margin: 34px 0 14px 0;
+      color: #8da6c7;
+      z-index: 2;
+      position: relative;
+      font-size: 1.01rem;
+    }
+    @media (max-width: 1000px) {
+      .card-section { max-width: 98vw; }
+      .result-table { font-size: 0.92rem; }
+    }
+    @media (max-width: 650px) {
+      .card-section {
+        padding: 15px 2vw;
+        max-width: 99vw;
+      }
+      .hash-block-card, .card-livehash, .card-websocket { padding: 10px 2vw 10px 2vw;}
+      .result-table th, .result-table td { padding: 6px 4px;}
+    }
+  </style>
+
+<script>
+    import { Web3Auth, WEB3AUTH_NETWORK, WALLET_CONNECTORS, MFA_LEVELS } from '@web3auth/modal'
+
+const web3auth = new Web3Auth({
+  clientId: 'BJxn5I3bhU-uhDoK2AQH0jwkjV3hUreulZsIkYYiLCd0yXJhaqlPZhdeNsA8ryoBRUkhUv0QtevwA9JidLtx0Ec',
+  web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
+  modalConfig: {
+    connectors: {
+      [WALLET_CONNECTORS.AUTH]: {
+        label: 'auth',
+        loginMethods: {
+          google: {
+            name: 'google login',
+            // logoDark: "url to your custom logo which will shown in dark mode",
+          },
+          facebook: {
+            name: 'facebook login',
+            showOnModal: true, // hides the facebook option
+          },
+          email_passwordless: {
+            name: 'email passwordless login',
+            showOnModal: true,
+            authConnectionId: 'w3a-email_passwordless-demo',
+          },
+          sms_passwordless: {
+            name: 'sms passwordless login',
+            showOnModal: true,
+            authConnectionId: 'w3a-sms_passwordless-demo',
+          },
+        },
+        showOnModal: true, // set to false to hide all social login methods
+      },
+    },
+    hideWalletDiscovery: true, // set to true to hide external wallets discovery
+  },
+  mfaLevel: MFA_LEVELS.MANDATORY,
+})
+
+    await web3auth.connect()
+// Use with a Solana library
+const solanaWallet = new SolanaWallet(web3auth.provider)
+
+    await web3auth.connect()
+// Use with ethers.js
+const ethProvider = new ethers.BrowserProvider(web3auth.provider)
+// OR
+// Use with viem
+const walletClient = createWalletClient({
+  chain: getViewChain(web3auth.provider),
+  transport: custom(web3auth.provider),
+})
+
+
+await web3auth.init()
+    
+  </script>
+
+  
+</head>
+<body>
+  <!-- Moving Blurred Aero Circles -->
+  <div class="bg-circles" id="bg-circles"></div>
+  <!-- Navigation -->
+  <header>
+    <div class="nav-logo">EVMt Multi-Hash/Block Dashboard</div>
+    <nav>
+      <ul>
+        <li><a href="#hashgen">Hash Gen</a></li>
+        <li><a href="#blockgen">Block Gen</a></li>
+        <li><a href="#livehash">Live Hash</a></li>
+        <li><a href="#websocket">WebSocket</a></li>
+        <li><a href="#search">Search</a></li>
+        <li><a href="#about">About</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main>
+    <!-- Description Section -->
+    <section id="about" class="card-section">
+      <h2 class="card-title">Dashboard Overview</h2>
+      <div class="desc">
+        Welcome to the EVMt Multi-Hash & Block Generator Dashboard!<br>
+        <b>Features:</b>
+        <ul>
+          <li><b>Multi-Hash Generator:</b> Instantly generate hashes for any index using <b>SHA-1, SHA-256, SHA-384, SHA-512, SHA-3-256, SHA-3-512</b>, and simulated "SHA-4096".</li>
+          <li><b>Block Generator:</b> Simulate blockchain blocks, each with their own index and all hashes, with real-time auto updates.</li>
+          <li><b>Live Hash Generator:</b> Continuously generates a random hash every second, simulating live mining/pool hash rates.</li>
+          <li><b>WebSocket:</b> Connect to a WebSocket server, send/receive messages, and see real-time blockchain or hash data from the backend.</li>
+          <li><b>Search:</b> Find hashes or blocks by index or hash value.</li>
+          <li><b>Aero Theme:</b> Modern glassy pink/blue UI with animated blurred circles in the background.</li>
+        </ul>
+      </div>
+      <div class="card-netver">Net Version: <b>v1.0.0</b></div>
+    </section>
+    <!-- Multi-Hash Generator Card -->
+    <section id="hashgen" class="card-section">
+      <h2 class="card-title">Multi-Algorithm Hash Generator</h2>
+      <div class="desc">Enter an index to instantly generate hashes using multiple algorithms. Enable auto mode to increment and generate hashes for sequential indexes. Recent hashes are listed below.</div>
+      <div class="hash-block-card">
+        <div class="hash-block-row">
+          <label for="hash-index-input">Index:</label>
+          <input type="number" id="hash-index-input" min="0" value="0" />
+          <button id="gen-hash-btn">Generate Hashes</button>
+          <button id="auto-gen-btn">Auto Mode</button>
+        </div>
+        <div class="results-area">
+          <label>Hashes for Index:</label>
+          <div style="overflow-x:auto;">
+            <table class="result-table" id="hash-result-table">
+              <thead>
+                <tr>
+                  <th>Algorithm</th>
+                  <th>Hash</th>
+                </tr>
+              </thead>
+              <tbody id="hash-result-tbody">
+                <tr><td colspan="2">---</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="results-area">
+          <label>Hash History:</label>
+          <ul id="hash-history-list" class="history-list"></ul>
+        </div>
+      </div>
+    </section>
+    <!-- Block Generator Card -->
+    <section id="blockgen" class="card-section">
+      <h2 class="card-title">Auto Block Generator</h2>
+      <div class="desc">Simulate blockchain blocks: each block has an auto-generated sequential index and all hashes, with live updates every few seconds.</div>
+      <div class="hash-block-card">
+        <div class="hash-block-row">
+          <label>Block Index:</label>
+          <div id="block-index" class="result-block">---</div>
+        </div>
+        <div class="results-area">
+          <label>Block Hashes:</label>
+          <div style="overflow-x:auto;">
+            <table class="result-table" id="block-hash-table">
+              <thead>
+                <tr>
+                  <th>Algorithm</th>
+                  <th>Hash</th>
+                </tr>
+              </thead>
+              <tbody id="block-hash-tbody">
+                <tr><td colspan="2">---</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="hash-block-row">
+          <label>Status:</label>
+          <div id="block-status" class="result-block">Waiting...</div>
+        </div>
+        <div class="results-area">
+          <label>Block History:</label>
+          <ul id="block-history-list" class="history-list"></ul>
+        </div>
+      </div>
+    </section>
+    <!-- Live Real-Time Hash Generator Card -->
+    <section id="livehash" class="card-section">
+      <h2 class="card-title">Real-Time Auto Hash Generator</h2>
+      <div class="card-livehash">
+        <div class="card-livehash-title">Real-Time Hash (Pool/Mining Sim)</div>
+        <div class="card-livehash-desc">This card simulates a mining pool/pool hash, continuously generating a new random SHA-512 hash every 1s. Use this for UI/UX or real pool backend integration (WebSocket or API ready).</div>
+        <div id="livehash-current" class="card-livehash-current">---</div>
+        <div id="livehash-status" class="card-livehash-status">Waiting...</div>
+      </div>
+    </section>
+    <!-- WebSocket Card -->
+    <section id="websocket" class="card-section">
+      <h2 class="card-title">WebSocket Real-Time Demo</h2>
+      <div class="card-websocket">
+        <div class="card-websocket-title">WebSocket Client &mdash; Connect to Real-Time Backend</div>
+        <div class="card-websocket-desc">
+          Connect to a WebSocket server (e.g. <code>ws://localhost:4000/</code>), send/receive messages, and see live blockchain/hash data updates.<br>
+          <b>How to use:</b>
+          <ol>
+            <li>Start a WebSocket server (see example below).</li>
+            <li>Enter the server address and connect.</li>
+            <li>Send messages and receive data in real time.</li>
+            <li>Use this for real pool/blockchain backend integration!</li>
+          </ol>
+        </div>
+        <div class="card-websocket-address">
+          WebSocket Address: 
+          <input type="text" id="ws-address" value="ws://localhost:4000/" />
+          <button id="ws-connect-btn">Connect</button>
+        </div>
+        <div class="card-websocket-controls">
+          <input type="text" id="ws-message" placeholder="Type message..." />
+          <button id="ws-send-btn" disabled>Send</button>
+          <span id="ws-status" class="card-websocket-status">Not connected</span>
+        </div>
+        <div id="ws-messages" class="card-websocket-messages"></div>
+        <div style="font-size:0.96em;color:#b18dff;padding-top:6px;">
+          Example server: <code>npm i ws</code> then <code>node server.js</code> <br>
+          <code>
+            const WebSocket = require('ws');<br>
+            const wss = new WebSocket.Server({ port: 4000 });<br>
+            wss.on('connection', ws =&gt; {<br>
+            &nbsp;&nbsp;ws.on('message', msg =&gt; ws.send('Echo: '+msg));<br>
+            &nbsp;&nbsp;setInterval(() =&gt; ws.send('block:'+Date.now()), 2000);<br>
+            });
+          </code>
+        </div>
+      </div>
+    </section>
+    <!-- Search Card -->
+    <section id="search" class="card-section">
+      <h2 class="card-title">Search Hashes & Blocks</h2>
+      <div class="desc">Enter an index or hash to find corresponding hash or block details below.</div>
+      <div class="hash-block-card">
+        <div class="search-row">
+          <input type="text" id="search-input" placeholder="Index or hash value..." />
+          <button id="search-btn">Search</button>
+        </div>
+        <div id="search-result" class="search-result"></div>
+      </div>
+    </section>
+  </main>
+  <footer>
+    &copy; 2025 EVMt UIx-wg. Aero UI Demo. All rights reserved.
+  </footer>
+  <!-- SHA3 polyfill -->
+  <script>
+    // Moving Aero Circles
+    const circlesData = [
+      {size: 230, top: 22, left: 8, color: 'pink', dur: 18},
+      {size: 180, top: 70, left: 80, color: 'blue', dur: 14},
+      {size: 270, top: 190, left: 320, color: 'pink', dur: 17},
+      {size: 220, top: 390, left: 180, color: 'blue', dur: 15},
+      {size: 200, top: 220, left: 600, color: 'pink', dur: 21},
+      {size: 170, top: 410, left: 720, color: 'blue', dur: 16},
+      {size: 220, top: 130, left: 880, color: 'blue', dur: 17},
+      {size: 170, top: 330, left: 1020, color: 'pink', dur: 19},
+      {size: 140, top: 350, left: 1300, color: 'blue', dur: 15},
+      {size: 160, top: 70, left: 1100, color: 'pink', dur: 18}
+    ];
+    function createCircle({size, top, left, color, dur}, i) {
+      const c = document.createElement('div');
+      c.className = 'circle ' + color;
+      c.style.width = `${size}px`;
+      c.style.height = `${size}px`;
+      c.style.top = `${top}px`;
+      c.style.left = `${left}px`;
+      c.style.animationDuration = `${dur}s`;
+      c.style.zIndex = 0;
+      c.style.opacity = 0.19 + (0.13 * (i%2));
+      document.getElementById('bg-circles').appendChild(c);
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      for (let i=0;i<circlesData.length;i++) createCircle(circlesData[i], i);
+    });
+
+    // Multi-Hash Algorithms
+    const algoList = [
+      { name: "SHA-1", id: "sha-1"},
+      { name: "SHA-256", id: "sha-256"},
+      { name: "SHA-384", id: "sha-384"},
+      { name: "SHA-512", id: "sha-512"},
+      { name: "SHA3-256", id: "sha3-256"},
+      { name: "SHA3-512", id: "sha3-512"},
+      { name: "SHA-4096", id: "sha-4096"} // simulated
+    ];
+    // Polyfill for SHA3 (use subtleCrypto on modern browsers, fallback to simulated)
+    async function computeHash(algo, input) {
+      if(algo === "sha-4096") {
+        // Simulate "SHA-4096" (not real, just triple SHA-512 for fun)
+        if(window.crypto && window.crypto.subtle) {
+          let enc = new TextEncoder();
+          let buf = await window.crypto.subtle.digest("SHA-512", enc.encode(input));
+          buf = await window.crypto.subtle.digest("SHA-512", buf);
+          buf = await window.crypto.subtle.digest("SHA-512", buf); // 3x
+          return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+        } else {
+          return "N/A";
+        }
+      }
+      if(algo.startsWith("sha3")) {
+        // Try js-sha3 if available, else fallback
+        if(typeof window.sha3_256 === "function" && typeof window.sha3_512 === "function") {
+          if(algo==="sha3-256") return window.sha3_256(input);
+          if(algo==="sha3-512") return window.sha3_512(input);
+        }
+        // Fallback: not supported natively, show N/A
+        return "N/A";
+      }
+      // Use subtleCrypto for SHA-1, SHA-256, SHA-384, SHA-512
+      if(window.crypto && window.crypto.subtle) {
+        let enc = new TextEncoder();
+        let buf = await window.crypto.subtle.digest(algo.replace("sha-","SHA-").toUpperCase(), enc.encode(input));
+        return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+      }
+      // Fallback: basic hash
+      let str = input.toString(), h = 5381;
+      for (let i = 0; i < str.length; i++) h = (h * 33) ^ str.charCodeAt(i);
+      return (h >>> 0).toString(16);
+    }
+    // If sha3 not present, load js-sha3 from CDN for demo
+    (function(){
+      if(typeof window.sha3_256 !== "function") {
+        let s=document.createElement('script');
+        s.src="https://cdn.jsdelivr.net/npm/js-sha3@0.9.2/build/sha3.min.js";
+        document.head.appendChild(s);
+      }
+    })();
+
+    // Multi-Hash Generator UI
+    let hashHistory = [];
+    let autoHashTimer = null;
+    let autoHashIndex = 1;
+    const hashIndexInput = () => document.getElementById('hash-index-input');
+    const hashResultTbody = () => document.getElementById('hash-result-tbody');
+    const hashHistList = () => document.getElementById('hash-history-list');
+    function renderHashTable(results) {
+      hashResultTbody().innerHTML = '';
+      results.forEach(r => {
+        let tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.algoname}</td><td style="word-break:break-all;">${r.hash}</td>`;
+        hashResultTbody().appendChild(tr);
+      });
+    }
+    function renderHashHistory() {
+      const list = hashHistList();
+      list.innerHTML = '';
+      hashHistory.slice(0, 10).forEach(item => {
+        let txt = `Index ${item.idx}: `;
+        txt += algoList.map(a=>`${a.name}: ${item.hashes[a.id]||'N/A'}`).join(" | ");
+        const li = document.createElement('li');
+        li.textContent = txt;
+        list.appendChild(li);
+      });
+    }
+    async function genHashes(idx) {
+      let results = [];
+      let hashMap = {};
+      for(const algo of algoList) {
+        let h = await computeHash(algo.id, idx.toString());
+        results.push({algoname: algo.name, hash: h});
+        hashMap[algo.id]=h;
+      }
+      renderHashTable(results);
+      hashHistory.unshift({ idx, hashes: hashMap });
+      if (hashHistory.length > 20) hashHistory.length = 20;
+      renderHashHistory();
+      return hashMap;
+    }
+    document.getElementById('gen-hash-btn').onclick = async () => {
+      const idx = parseInt(hashIndexInput().value, 10);
+      if(isNaN(idx) || idx<0) { renderHashTable([{algoname:'-',hash:'Invalid index!'}]); return; }
+      await genHashes(idx);
+    };
+    document.getElementById('auto-gen-btn').onclick = function() {
+      if (autoHashTimer) {
+        clearInterval(autoHashTimer);
+        autoHashTimer = null;
+        this.textContent = "Auto Mode";
+        hashIndexInput().disabled = false;
+      } else {
+        this.textContent = "Stop Auto";
+        hashIndexInput().disabled = true;
+        autoHashIndex = parseInt(hashIndexInput().value, 10) || 0;
+        autoHashTimer = setInterval(async () => {
+          await genHashes(autoHashIndex++);
+          hashIndexInput().value = autoHashIndex;
+        }, 1400);
+      }
+    };
+
+    // Block Generator Logic
+    let blockIndex = 0;
+    let blockStatus = 'Waiting...';
+    let blockTimer = null;
+    let blockHistory = [];
+    const blockIndexDiv = () => document.getElementById('block-index');
+    const blockHashTbody = () => document.getElementById('block-hash-tbody');
+    const blockStatusDiv = () => document.getElementById('block-status');
+    const blockHistList = () => document.getElementById('block-history-list');
+    function renderBlockTable(results) {
+      blockHashTbody().innerHTML = '';
+      results.forEach(r => {
+        let tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.algoname}</td><td style="word-break:break-all;">${r.hash}</td>`;
+        blockHashTbody().appendChild(tr);
+      });
+    }
+    function renderBlockHistory() {
+      const list = blockHistList();
+      list.innerHTML = '';
+      blockHistory.slice(0, 10).forEach(item => {
+        let txt = `Block ${item.idx}: `;
+        txt += algoList.map(a=>`${a.name}: ${item.hashes[a.id]||'N/A'}`).join(" | ");
+        txt += ` (${item.time})`;
+        const li = document.createElement('li');
+        li.textContent = txt;
+        list.appendChild(li);
+      });
+    }
+    async function regenBlock() {
+      blockIndex++;
+      blockStatus = "Mining...";
+      blockIndexDiv().textContent = blockIndex;
+      blockStatusDiv().textContent = blockStatus;
+      let entropy = "block-"+blockIndex+"-"+(Math.random()*1e16).toFixed(0)+"-"+Date.now();
+      let results = [];
+      let hashMap = {};
+      for(const algo of algoList) {
+        let h = await computeHash(algo.id, entropy);
+        results.push({algoname: algo.name, hash: h});
+        hashMap[algo.id]=h;
+      }
+      renderBlockTable(results);
+      blockStatus = "Block mined at " + (new Date()).toLocaleTimeString();
+      blockStatusDiv().textContent = blockStatus;
+      blockHistory.unshift({idx: blockIndex, hashes: hashMap, time: (new Date()).toLocaleTimeString()});
+      if (blockHistory.length > 20) blockHistory.length = 20;
+      renderBlockHistory();
+    }
+    function autoBlockGen() {
+      regenBlock();
+      blockTimer = setTimeout(autoBlockGen, Math.floor(Math.random()*1800)+2200);
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      genHashes(0);
+      regenBlock();
+      autoBlockGen();
+    });
+
+    // Live Real-Time Hash Generator
+    async function liveHashGen() {
+      const statusDiv = document.getElementById('livehash-status');
+      const currentDiv = document.getElementById('livehash-current');
+      const entropy = "live-" + Date.now() + "-" + Math.random() + "-" + Math.random().toString(36).substr(2,12);
+      currentDiv.textContent = '...';
+      let hash = await computeHash("sha-512", entropy);
+      currentDiv.textContent = hash;
+      statusDiv.textContent = "Updated: " + (new Date()).toLocaleTimeString();
+      setTimeout(liveHashGen, 1000);
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      liveHashGen();
+    });
+
+    // WebSocket Card UI
+    let ws = null;
+    let wsConnected = false;
+    const wsAddrInput = document.getElementById('ws-address');
+    const wsConnectBtn = document.getElementById('ws-connect-btn');
+    const wsSendBtn = document.getElementById('ws-send-btn');
+    const wsMsgInput = document.getElementById('ws-message');
+    const wsStatus = document.getElementById('ws-status');
+    const wsMessages = document.getElementById('ws-messages');
+    let wsMsgHistory = [];
+    wsConnectBtn.onclick = function() {
+      if(wsConnected && ws) {
+        ws.close();
+        return;
+      }
+      let url = wsAddrInput.value.trim();
+      if(!url.match(/^wss?:\/\//)) {
+        wsStatus.textContent = "Invalid ws:// or wss:// address";
+        wsStatus.style.color = '#c74d2e';
+        return;
+      }
+      ws = new window.WebSocket(url);
+      wsStatus.textContent = "Connecting...";
+      wsStatus.style.color = '#b49722';
+      wsConnectBtn.textContent = "Disconnect";
+      wsSendBtn.disabled = true;
+      ws.onopen = function() {
+        wsConnected = true;
+        wsStatus.textContent = "Connected";
+        wsStatus.style.color = "#317c5a";
+        wsSendBtn.disabled = false;
+        wsMsgInput.disabled = false;
+      };
+      ws.onclose = function() {
+        wsConnected = false;
+        wsStatus.textContent = "Not connected";
+        wsStatus.style.color = "#b94e7f";
+        wsConnectBtn.textContent = "Connect";
+        wsSendBtn.disabled = true;
+        wsMsgInput.disabled = true;
+      };
+      ws.onerror = function(e) {
+        wsStatus.textContent = "Error: " + (e.message||"");
+        wsStatus.style.color = "#c74d2e";
+      };
+      ws.onmessage = function(msg) {
+        addWsMessage("> "+msg.data);
+      };
+    }
+    wsSendBtn.onclick = function() {
+      if(ws && wsConnected && wsMsgInput.value.trim().length) {
+        ws.send(wsMsgInput.value.trim());
+        addWsMessage("< "+wsMsgInput.value.trim());
+        wsMsgInput.value = "";
+      }
+    };
+    wsMsgInput.addEventListener('keydown',function(e){
+      if(e.key==="Enter") wsSendBtn.onclick();
+    });
+    function addWsMessage(msg) {
+      wsMsgHistory.push(msg);
+      if(wsMsgHistory.length>20) wsMsgHistory=wsMsgHistory.slice(wsMsgHistory.length-20);
+      wsMessages.innerHTML = wsMsgHistory.map(m=>m.replace(/</g,'&lt;').replace(/>/g,'&gt;')).join("<br>");
+    }
+
+    // Search Feature (for both hashes and blocks)
+    document.getElementById('search-btn').onclick = () => {
+      const q = document.getElementById('search-input').value.trim();
+      const out = document.getElementById('search-result');
+      if (!q) { out.textContent = "Enter an index or hash to search."; return; }
+      // Search hash history
+      let found = hashHistory.find(h=>h.idx.toString()===q || Object.values(h.hashes).includes(q));
+      if (found) {
+        out.innerHTML = `<b>Hash Index:</b> ${found.idx}<br>` +
+          algoList.map(a=>`<b>${a.name}:</b> ${found.hashes[a.id]||'N/A'}`).join("<br>");
+        return;
+      }
+      // Search block history
+      let foundB = blockHistory.find(b=>b.idx.toString()===q || Object.values(b.hashes).includes(q));
+      if (foundB) {
+        out.innerHTML = `<b>Block Index:</b> ${foundB.idx}<br>` +
+          algoList.map(a=>`<b>${a.name}:</b> ${foundB.hashes[a.id]||'N/A'}`).join("<br>") +
+          `<br><b>Mined:</b> ${foundB.time}`;
+        return;
+      }
+      out.innerHTML = `<span style="color:#eb69c6">Not found in recent hashes or blocks.</span>`;
+    };
+  </script>
+</body>
+</html>
